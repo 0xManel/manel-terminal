@@ -1,119 +1,163 @@
-"use client"
-import { useState, useEffect } from "react"
-import Link from "next/link"
-import MatrixBackground from "@/components/MatrixBackground"
+'use client'
+
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import MatrixBackground from '@/components/MatrixBackground'
+import { getLeaderboard, getCurrentUser, UserData } from '@/lib/client-storage'
+
+interface LeaderboardEntry extends UserData {
+  rank: number
+  pnl: number
+  winRate: number
+}
 
 export default function Leaderboard() {
-  const [period, setPeriod] = useState("semana")
-  const [currentUser, setCurrentUser] = useState<any>(null)
-  const [traders, setTraders] = useState<any[]>([])
+  const router = useRouter()
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
+  const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const stored = localStorage.getItem("user")
-    if (stored) setCurrentUser(JSON.parse(stored))
+    const loadData = () => {
+      const data = getLeaderboard()
+      setLeaderboard(data)
+      
+      const user = getCurrentUser()
+      setCurrentUserEmail(user?.email || null)
+      
+      setLoading(false)
+    }
     
-    fetchLeaderboard()
-    const interval = setInterval(fetchLeaderboard, 30000)
+    loadData()
+    
+    // Atualizar a cada 30 segundos
+    const interval = setInterval(loadData, 30000)
     return () => clearInterval(interval)
   }, [])
 
-  const fetchLeaderboard = async () => {
-    try {
-      const res = await fetch("/api/leaderboard")
-      const data = await res.json()
-      if (data.success) {
-        setTraders(data.leaderboard)
-      }
-    } catch (e) {
-      console.error(e)
-    }
-    setLoading(false)
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <MatrixBackground />
+        <div className="text-green-500 text-xl animate-pulse">Carregando ranking...</div>
+      </div>
+    )
   }
 
+  const top3 = leaderboard.slice(0, 3)
+  const rest = leaderboard.slice(3)
+
   return (
-    <main className="min-h-screen flex flex-col relative">
+    <div className="min-h-screen bg-black text-green-500 p-4">
       <MatrixBackground />
-      <div className="relative z-10 flex flex-col min-h-screen">
-        <header className="border-b border-terminal-green/20 p-3 bg-terminal-bg/80 backdrop-blur-sm">
-          <div className="flex justify-between items-center max-w-lg mx-auto">
-            <Link href="/" className="font-display text-lg font-black glow">MANEL_TERMINAL</Link>
-            <Link href="/dashboard" className="text-terminal-cyan hover:underline text-xs">VOLTAR</Link>
-          </div>
-        </header>
-        <div className="flex-1 p-4 space-y-4 max-w-lg mx-auto w-full">
-          <div className="flex justify-between items-center">
-            <h2 className="font-display text-xl">RANKING</h2>
-            <div className="flex gap-1">
-              {["dia", "semana", "mes"].map((p) => (
-                <button key={p} onClick={() => setPeriod(p)}
-                  className={period === p ? "px-2 py-1 text-xs rounded bg-terminal-green text-terminal-bg" : "px-2 py-1 text-xs rounded border border-terminal-green/30 text-terminal-green/50"}>
-                  {p.toUpperCase()}
-                </button>
-              ))}
-            </div>
-          </div>
-          
-          {loading ? (
-            <div className="text-center py-8 text-terminal-green/50">Carregando...</div>
-          ) : traders.length === 0 ? (
-            <div className="text-center py-8 text-terminal-green/50">Nenhum trader ainda</div>
-          ) : (
-            <>
-              {traders.length >= 3 && (
-                <div className="grid grid-cols-3 gap-2 py-4">
-                  <div className="flex flex-col items-center justify-end">
-                    <div className="text-2xl mb-1">🥈</div>
-                    <div className="w-full p-2 bg-terminal-bg/80 border border-terminal-green/20 rounded text-center">
-                      <div className="font-bold text-xs truncate">{traders[1]?.username}</div>
-                      <div className="text-terminal-green text-sm">{traders[1]?.pnl >= 0 ? "+" : ""}${traders[1]?.pnl?.toFixed(2)}</div>
-                    </div>
-                  </div>
-                  <div className="flex flex-col items-center justify-end">
-                    <div className="text-3xl mb-1">🥇</div>
-                    <div className="w-full p-3 bg-terminal-green/10 border-2 border-terminal-green rounded text-center">
-                      <div className="font-bold text-sm truncate">{traders[0]?.username}</div>
-                      <div className="text-terminal-green font-display text-xl glow">{traders[0]?.pnl >= 0 ? "+" : ""}${traders[0]?.pnl?.toFixed(2)}</div>
-                    </div>
-                  </div>
-                  <div className="flex flex-col items-center justify-end">
-                    <div className="text-2xl mb-1">🥉</div>
-                    <div className="w-full p-2 bg-terminal-bg/80 border border-terminal-green/20 rounded text-center">
-                      <div className="font-bold text-xs truncate">{traders[2]?.username}</div>
-                      <div className="text-terminal-green text-sm">{traders[2]?.pnl >= 0 ? "+" : ""}${traders[2]?.pnl?.toFixed(2)}</div>
-                    </div>
-                  </div>
+      
+      <div className="relative z-10 max-w-4xl mx-auto">
+        {/* Header */}
+        <div className="flex justify-between items-center mb-6 border-b border-green-800 pb-4">
+          <h1 className="text-2xl font-bold">RANKING</h1>
+          <button 
+            onClick={() => router.push('/dashboard')}
+            className="text-green-600 hover:text-green-400"
+          >
+            Voltar ao Dashboard
+          </button>
+        </div>
+
+        {/* Podium */}
+        {top3.length > 0 && (
+          <div className="grid grid-cols-3 gap-4 mb-8">
+            {/* 2nd Place */}
+            <div className="mt-8">
+              {top3[1] && (
+                <div className={`bg-black/50 border p-4 rounded text-center ${
+                  top3[1].email === currentUserEmail ? 'border-cyan-400' : 'border-gray-600'
+                }`}>
+                  <div className="text-4xl mb-2">🥈</div>
+                  <p className="font-bold">{top3[1].username}</p>
+                  <p className={`text-lg ${top3[1].pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    {top3[1].pnl >= 0 ? '+' : ''}${top3[1].pnl.toFixed(2)}
+                  </p>
+                  <p className="text-sm text-green-600">{top3[1].winRate}% WR</p>
                 </div>
               )}
-              <div className="bg-terminal-bg/80 border border-terminal-green/20 rounded overflow-hidden">
-                {traders.map((t) => (
-                  <div key={t.email}
-                    className={"flex items-center justify-between p-3 border-b border-terminal-green/10 last:border-0 " + (currentUser?.email === t.email ? "bg-terminal-cyan/10" : "")}>
-                    <div className="flex items-center gap-3">
-                      <span className="font-display text-sm w-8">
-                        {t.rank <= 3 ? ["🥇", "🥈", "🥉"][t.rank - 1] : "#" + t.rank}
-                      </span>
-                      <span className="text-sm truncate max-w-[120px]">
-                        {t.username}
-                        {currentUser?.email === t.email && <span className="ml-1 text-terminal-cyan text-xs">(EU)</span>}
-                      </span>
-                    </div>
-                    <div className="text-right">
-                      <div className={t.pnl >= 0 ? "text-sm font-mono text-terminal-green" : "text-sm font-mono text-terminal-red"}>
-                        {t.pnl >= 0 ? "+" : ""}${t.pnl?.toFixed(2)}
-                      </div>
-                      <div className="text-xs text-terminal-green/40">{t.winRate}% WR</div>
-                    </div>
+            </div>
+            
+            {/* 1st Place */}
+            <div>
+              {top3[0] && (
+                <div className={`bg-black/50 border p-4 rounded text-center ${
+                  top3[0].email === currentUserEmail ? 'border-cyan-400' : 'border-yellow-500'
+                }`}>
+                  <div className="text-5xl mb-2">🏆</div>
+                  <p className="font-bold text-lg">{top3[0].username}</p>
+                  <p className={`text-xl ${top3[0].pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    {top3[0].pnl >= 0 ? '+' : ''}${top3[0].pnl.toFixed(2)}
+                  </p>
+                  <p className="text-sm text-green-600">{top3[0].winRate}% WR</p>
+                </div>
+              )}
+            </div>
+            
+            {/* 3rd Place */}
+            <div className="mt-12">
+              {top3[2] && (
+                <div className={`bg-black/50 border p-4 rounded text-center ${
+                  top3[2].email === currentUserEmail ? 'border-cyan-400' : 'border-orange-700'
+                }`}>
+                  <div className="text-4xl mb-2">🥉</div>
+                  <p className="font-bold">{top3[2].username}</p>
+                  <p className={`text-lg ${top3[2].pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    {top3[2].pnl >= 0 ? '+' : ''}${top3[2].pnl.toFixed(2)}
+                  </p>
+                  <p className="text-sm text-green-600">{top3[2].winRate}% WR</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Rest of leaderboard */}
+        {rest.length > 0 && (
+          <div className="space-y-2">
+            {rest.map(user => (
+              <div 
+                key={user.email}
+                className={`bg-black/50 border p-3 rounded flex justify-between items-center ${
+                  user.email === currentUserEmail ? 'border-cyan-400' : 'border-green-800'
+                }`}
+              >
+                <div className="flex items-center gap-4">
+                  <span className="text-green-600 font-mono w-8">#{user.rank}</span>
+                  <div>
+                    <p className="font-bold">{user.username}</p>
+                    <p className="text-sm text-green-600">{user.riskProfile.toUpperCase()}</p>
                   </div>
-                ))}
+                </div>
+                <div className="text-right">
+                  <p className={`font-bold ${user.pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    {user.pnl >= 0 ? '+' : ''}${user.pnl.toFixed(2)}
+                  </p>
+                  <p className="text-sm text-green-600">
+                    {user.winRate}% WR | {user.wins}W/{user.losses}L
+                  </p>
+                </div>
               </div>
-            </>
-          )}
-        </div>
-        <footer className="border-t border-terminal-green/10 p-2 text-center text-xs text-terminal-green/30 bg-terminal-bg/80">
-          Atualizado em tempo real
-        </footer>
+            ))}
+          </div>
+        )}
+
+        {leaderboard.length === 0 && (
+          <div className="text-center py-12 text-green-600">
+            <p className="text-xl mb-4">Nenhum trader ainda!</p>
+            <button 
+              onClick={() => router.push('/register')}
+              className="bg-green-800 hover:bg-green-700 text-black px-6 py-2 rounded"
+            >
+              Seja o primeiro!
+            </button>
+          </div>
+        )}
       </div>
-    </main>
+    </div>
   )
 }

@@ -1,196 +1,166 @@
-"use client"
-import { useState } from "react"
-import Link from "next/link"
-import { useRouter } from "next/navigation"
-import MatrixBackground from "@/components/MatrixBackground"
+'use client'
+
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import MatrixBackground from '@/components/MatrixBackground'
+import { registerUser } from '@/lib/client-storage'
 
 export default function Register() {
   const router = useRouter()
   const [step, setStep] = useState(1)
-  const [form, setForm] = useState({
-    username: "",
-    email: "",
-    password: "",
+  const [formData, setFormData] = useState({
+    username: '',
+    email: '',
+    password: '',
     startingBalance: 100,
-    riskProfile: "medium",
+    riskProfile: 'medium'
   })
-  const [error, setError] = useState("")
+  const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (step < 2) {
-      setStep(2)
-      return
-    }
-
+    setError('')
     setLoading(true)
-    setError("")
 
-    try {
-      const res = await fetch("/api/auth/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
-      })
-      const data = await res.json()
-      
-      if (data.success) {
-        localStorage.setItem("user", JSON.stringify(data.user))
-        router.push("/dashboard")
-      } else {
-        setError(data.error || "Falha no registro")
-      }
-    } catch {
-      setError("Erro de conexao")
+    const result = registerUser(formData)
+    
+    if (result.success) {
+      router.push('/dashboard')
+    } else {
+      setError(result.error || 'Erro ao criar conta')
+      setLoading(false)
     }
-    setLoading(false)
   }
 
-  const riskProfiles = [
-    { id: "safe", name: "SEGURO", desc: "Menor risco, entradas conservadoras", color: "text-terminal-cyan", border: "border-terminal-cyan/50" },
-    { id: "medium", name: "MODERADO", desc: "Equilibrio entre risco e retorno", color: "text-terminal-yellow", border: "border-terminal-yellow/50" },
-    { id: "aggressive", name: "AGRESSIVO", desc: "Maior risco, maior potencial", color: "text-terminal-red", border: "border-terminal-red/50" },
-  ]
-
   return (
-    <main className="min-h-screen flex flex-col relative">
+    <div className="min-h-screen bg-black text-green-500 flex items-center justify-center p-4">
       <MatrixBackground />
       
-      <div className="relative z-10 min-h-screen flex flex-col items-center justify-center p-4">
-        <div className="w-full max-w-sm space-y-6">
-          <div className="text-center fade-in-up">
-            <Link href="/" className="font-display text-2xl font-black glow">
-              MANEL_TERMINAL
-            </Link>
-            <p className="mt-2 text-terminal-green/40 text-xs">Crie sua conta</p>
-          </div>
+      <div className="relative z-10 w-full max-w-md">
+        <div className="bg-black/80 border border-green-800 p-6 rounded-lg">
+          <h1 className="text-2xl font-bold text-center mb-6">CRIAR CONTA</h1>
+          
+          {error && (
+            <div className="bg-red-900/50 border border-red-500 text-red-400 p-3 rounded mb-4">
+              {error}
+            </div>
+          )}
 
-          {/* Progress */}
-          <div className="flex gap-2 fade-in-up delay-1">
-            <div className={`flex-1 h-1 rounded transition-all ${step >= 1 ? "bg-terminal-green" : "bg-terminal-green/20"}`} />
-            <div className={`flex-1 h-1 rounded transition-all ${step >= 2 ? "bg-terminal-green" : "bg-terminal-green/20"}`} />
-          </div>
-
-          <form onSubmit={handleSubmit} className="space-y-4 p-5 bg-terminal-bg/90 backdrop-blur-sm border border-terminal-green/20 rounded fade-in-up delay-2">
-            {error && (
-              <div className="p-2 bg-terminal-red/10 border border-terminal-red/50 text-terminal-red text-sm rounded text-center">
-                {error}
-              </div>
-            )}
-
+          <form onSubmit={handleSubmit} className="space-y-4">
             {step === 1 && (
               <>
                 <div>
-                  <label className="block text-xs text-terminal-green/50 mb-1">NOME DE USUARIO</label>
+                  <label className="block text-sm text-green-600 mb-1">Username</label>
                   <input
                     type="text"
-                    value={form.username}
-                    onChange={(e) => setForm({ ...form, username: e.target.value })}
-                    className="w-full terminal-input p-3 rounded text-sm"
-                    placeholder="seu_nome"
+                    value={formData.username}
+                    onChange={e => setFormData({...formData, username: e.target.value})}
+                    className="w-full bg-black border border-green-800 p-3 rounded text-green-500 focus:border-green-400 outline-none"
                     required
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-terminal-green/50 mb-1">EMAIL</label>
+                  <label className="block text-sm text-green-600 mb-1">Email</label>
                   <input
                     type="email"
-                    value={form.email}
-                    onChange={(e) => setForm({ ...form, email: e.target.value })}
-                    className="w-full terminal-input p-3 rounded text-sm"
-                    placeholder="seu@email.com"
+                    value={formData.email}
+                    onChange={e => setFormData({...formData, email: e.target.value})}
+                    className="w-full bg-black border border-green-800 p-3 rounded text-green-500 focus:border-green-400 outline-none"
                     required
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-terminal-green/50 mb-1">SENHA</label>
+                  <label className="block text-sm text-green-600 mb-1">Senha</label>
                   <input
                     type="password"
-                    value={form.password}
-                    onChange={(e) => setForm({ ...form, password: e.target.value })}
-                    className="w-full terminal-input p-3 rounded text-sm"
-                    placeholder="••••••••"
-                    minLength={6}
+                    value={formData.password}
+                    onChange={e => setFormData({...formData, password: e.target.value})}
+                    className="w-full bg-black border border-green-800 p-3 rounded text-green-500 focus:border-green-400 outline-none"
                     required
                   />
                 </div>
+                <button
+                  type="button"
+                  onClick={() => setStep(2)}
+                  className="w-full bg-green-800 hover:bg-green-700 text-black font-bold py-3 rounded transition-colors"
+                >
+                  CONTINUAR
+                </button>
               </>
             )}
 
             {step === 2 && (
               <>
                 <div>
-                  <label className="block text-xs text-terminal-green/50 mb-2">SALDO INICIAL (SIMULADO)</label>
+                  <label className="block text-sm text-green-600 mb-2">Capital Inicial</label>
                   <div className="grid grid-cols-3 gap-2">
-                    {[25, 50, 100].map((amt) => (
+                    {[25, 50, 100].map(amount => (
                       <button
-                        key={amt}
+                        key={amount}
                         type="button"
-                        onClick={() => setForm({ ...form, startingBalance: amt })}
-                        className={`p-3 border rounded font-display text-sm transition-all ${
-                          form.startingBalance === amt
-                            ? "border-terminal-green bg-terminal-green/20 text-terminal-green"
-                            : "border-terminal-green/30 text-terminal-green/50 hover:border-terminal-green/60"
+                        onClick={() => setFormData({...formData, startingBalance: amount})}
+                        className={`p-3 rounded border transition-colors ${
+                          formData.startingBalance === amount
+                            ? 'bg-green-800 border-green-400 text-black'
+                            : 'border-green-800 hover:border-green-600'
                         }`}
                       >
-                        ${amt}
+                        ${amount}
                       </button>
                     ))}
                   </div>
                 </div>
-
                 <div>
-                  <label className="block text-xs text-terminal-green/50 mb-2">PERFIL DE RISCO</label>
+                  <label className="block text-sm text-green-600 mb-2">Perfil de Risco</label>
                   <div className="space-y-2">
-                    {riskProfiles.map((p) => (
+                    {[
+                      { id: 'safe', label: 'SEGURO', desc: 'Entradas >= 0.70, menor risco' },
+                      { id: 'medium', label: 'MEDIO', desc: 'Entradas >= 0.60, equilibrado' },
+                      { id: 'aggressive', label: 'AGRESSIVO', desc: 'Entradas >= 0.55, maior retorno' }
+                    ].map(profile => (
                       <button
-                        key={p.id}
+                        key={profile.id}
                         type="button"
-                        onClick={() => setForm({ ...form, riskProfile: p.id })}
-                        className={`w-full p-3 border rounded text-left transition-all ${
-                          form.riskProfile === p.id
-                            ? `${p.border} bg-terminal-green/10`
-                            : "border-terminal-green/20 hover:border-terminal-green/40"
+                        onClick={() => setFormData({...formData, riskProfile: profile.id})}
+                        className={`w-full p-3 rounded border text-left transition-colors ${
+                          formData.riskProfile === profile.id
+                            ? 'bg-green-800 border-green-400'
+                            : 'border-green-800 hover:border-green-600'
                         }`}
                       >
-                        <div className={`font-bold text-sm ${p.color}`}>{p.name}</div>
-                        <div className="text-xs text-terminal-green/50">{p.desc}</div>
+                        <p className="font-bold">{profile.label}</p>
+                        <p className="text-xs text-green-400">{profile.desc}</p>
                       </button>
                     ))}
                   </div>
                 </div>
-              </>
-            )}
-
-            <div className="flex gap-3 pt-2">
-              {step > 1 && (
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full bg-green-500 hover:bg-green-400 text-black font-bold py-3 rounded transition-colors disabled:opacity-50"
+                >
+                  {loading ? 'CRIANDO...' : 'CRIAR CONTA E COMECAR'}
+                </button>
                 <button
                   type="button"
                   onClick={() => setStep(1)}
-                  className="flex-1 py-3 border border-terminal-green/30 rounded text-sm hover:border-terminal-green/60 transition-all"
+                  className="w-full text-green-600 hover:text-green-400 py-2"
                 >
-                  VOLTAR
+                  Voltar
                 </button>
-              )}
-              <button
-                type="submit"
-                disabled={loading}
-                className="flex-1 btn-terminal py-3 rounded font-bold disabled:opacity-50"
-              >
-                {loading ? "..." : step < 2 ? "PROXIMO" : "COMECAR"}
-              </button>
-            </div>
+              </>
+            )}
           </form>
 
-          <p className="text-center text-sm text-terminal-green/50 fade-in-up delay-3">
-            Ja tem conta?{" "}
-            <Link href="/login" className="text-terminal-cyan hover:underline">
+          <p className="text-center text-sm text-green-600 mt-4">
+            Ja tem conta?{' '}
+            <button onClick={() => router.push('/login')} className="text-green-400 hover:underline">
               Entrar
-            </Link>
+            </button>
           </p>
         </div>
       </div>
-    </main>
+    </div>
   )
 }

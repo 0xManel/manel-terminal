@@ -1,101 +1,84 @@
-"use client"
-import { useState } from "react"
-import Link from "next/link"
-import { useRouter } from "next/navigation"
-import MatrixBackground from "@/components/MatrixBackground"
+'use client'
+
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import MatrixBackground from '@/components/MatrixBackground'
+import { loginUser } from '@/lib/client-storage'
 
 export default function Login() {
   const router = useRouter()
-  const [form, setForm] = useState({ email: "", password: "" })
-  const [error, setError] = useState("")
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setError('')
     setLoading(true)
-    setError("")
 
-    try {
-      const res = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
-      })
-      const data = await res.json()
-      
-      if (data.success) {
-        localStorage.setItem("user", JSON.stringify(data.user))
-        router.push("/dashboard")
-      } else {
-        setError(data.error || "Falha no login")
-      }
-    } catch {
-      setError("Erro de conexao")
+    const result = loginUser(email, password)
+    
+    if (result.success) {
+      router.push('/dashboard')
+    } else {
+      setError(result.error || 'Erro ao entrar')
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   return (
-    <main className="min-h-screen flex flex-col relative">
+    <div className="min-h-screen bg-black text-green-500 flex items-center justify-center p-4">
       <MatrixBackground />
       
-      <div className="relative z-10 min-h-screen flex flex-col items-center justify-center p-4">
-        <div className="w-full max-w-sm space-y-6">
-          <div className="text-center fade-in-up">
-            <Link href="/" className="font-display text-2xl font-black glow">
-              MANEL_TERMINAL
-            </Link>
-            <p className="mt-2 text-terminal-green/40 text-xs">Acesse sua conta</p>
-          </div>
+      <div className="relative z-10 w-full max-w-md">
+        <div className="bg-black/80 border border-green-800 p-6 rounded-lg">
+          <h1 className="text-2xl font-bold text-center mb-6">ENTRAR</h1>
+          
+          {error && (
+            <div className="bg-red-900/50 border border-red-500 text-red-400 p-3 rounded mb-4">
+              {error}
+            </div>
+          )}
 
-          <form onSubmit={handleSubmit} className="space-y-4 p-5 bg-terminal-bg/90 backdrop-blur-sm border border-terminal-green/20 rounded fade-in-up delay-1">
-            {error && (
-              <div className="p-2 bg-terminal-red/10 border border-terminal-red/50 text-terminal-red text-sm rounded text-center">
-                {error}
-              </div>
-            )}
-
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-xs text-terminal-green/50 mb-1">EMAIL</label>
+              <label className="block text-sm text-green-600 mb-1">Email</label>
               <input
                 type="email"
-                value={form.email}
-                onChange={(e) => setForm({ ...form, email: e.target.value })}
-                className="w-full terminal-input p-3 rounded text-sm"
-                placeholder="seu@email.com"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                className="w-full bg-black border border-green-800 p-3 rounded text-green-500 focus:border-green-400 outline-none"
                 required
               />
             </div>
-
             <div>
-              <label className="block text-xs text-terminal-green/50 mb-1">SENHA</label>
+              <label className="block text-sm text-green-600 mb-1">Senha</label>
               <input
                 type="password"
-                value={form.password}
-                onChange={(e) => setForm({ ...form, password: e.target.value })}
-                className="w-full terminal-input p-3 rounded text-sm"
-                placeholder="••••••••"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                className="w-full bg-black border border-green-800 p-3 rounded text-green-500 focus:border-green-400 outline-none"
                 required
               />
             </div>
-
             <button
               type="submit"
               disabled={loading}
-              className="w-full btn-terminal py-3 rounded font-bold disabled:opacity-50"
+              className="w-full bg-green-500 hover:bg-green-400 text-black font-bold py-3 rounded transition-colors disabled:opacity-50"
             >
-              {loading ? "ENTRANDO..." : "ENTRAR"}
+              {loading ? 'ENTRANDO...' : 'ENTRAR'}
             </button>
           </form>
 
-          <p className="text-center text-sm text-terminal-green/50 fade-in-up delay-2">
-            Nao tem conta?{" "}
-            <Link href="/register" className="text-terminal-cyan hover:underline">
-              Criar agora
-            </Link>
+          <p className="text-center text-sm text-green-600 mt-4">
+            Nao tem conta?{' '}
+            <button onClick={() => router.push('/register')} className="text-green-400 hover:underline">
+              Criar conta
+            </button>
           </p>
         </div>
       </div>
-    </main>
+    </div>
   )
 }

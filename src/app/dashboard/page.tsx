@@ -1,136 +1,175 @@
-"use client"
-import { useState, useEffect } from "react"
-import Link from "next/link"
-import { useRouter } from "next/navigation"
-import MatrixBackground from "@/components/MatrixBackground"
+'use client'
+
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import MatrixBackground from '@/components/MatrixBackground'
+import { 
+  getCurrentUser, 
+  getLeaderboard, 
+  simulateNewTrade,
+  UserData 
+} from '@/lib/client-storage'
 
 export default function Dashboard() {
   const router = useRouter()
-  const [user, setUser] = useState<any>(null)
-  const [syncing, setSyncing] = useState(false)
-  const [lastSync, setLastSync] = useState<string | null>(null)
-
-  const fetchUser = async (email: string) => {
-    try {
-      const res = await fetch("/api/user?email=" + encodeURIComponent(email))
-      const data = await res.json()
-      if (data.success) {
-        setUser(data.user)
-        localStorage.setItem("user", JSON.stringify(data.user))
-      }
-    } catch (e) {
-      console.error(e)
-    }
-  }
-
-  const syncTrades = async () => {
-    setSyncing(true)
-    try {
-      await fetch("/api/trades/sync")
-      const stored = localStorage.getItem("user")
-      if (stored) {
-        const u = JSON.parse(stored)
-        await fetchUser(u.email)
-      }
-      setLastSync(new Date().toLocaleTimeString())
-    } catch (e) {
-      console.error(e)
-    }
-    setSyncing(false)
-  }
+  const [user, setUser] = useState<UserData | null>(null)
+  const [rank, setRank] = useState(0)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const stored = localStorage.getItem("user")
-    if (!stored) {
-      router.push("/login")
-      return
+    const loadUser = () => {
+      const currentUser = getCurrentUser()
+      if (!currentUser) {
+        router.push('/login')
+        return
+      }
+      setUser(currentUser)
+      
+      const leaderboard = getLeaderboard()
+      const userRank = leaderboard.find(u => u.email === currentUser.email)
+      setRank(userRank?.rank || 0)
+      setLoading(false)
     }
-    const u = JSON.parse(stored)
-    setUser(u)
-    syncTrades()
-    const interval = setInterval(syncTrades, 30000)
+    
+    loadUser()
+    
+    // Sync cada 30 segundos
+    const interval = setInterval(() => {
+      simulateNewTrade()
+      loadUser()
+    }, 30000)
+    
     return () => clearInterval(interval)
   }, [router])
 
-  if (!user) return null
-
-  const balance = user.balance || user.startingBalance || 100
-  const startingBalance = user.startingBalance || 100
-  const pnl = balance - startingBalance
-  const pnlPct = (pnl / startingBalance) * 100
-  const wins = user.wins || 0
-  const losses = user.losses || 0
-  const winRate = wins + losses > 0 ? (wins / (wins + losses)) * 100 : 0
-
-  const handleLogout = () => {
-    localStorage.removeItem("user")
-    router.push("/")
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <MatrixBackground />
+        <div className="text-green-500 text-xl animate-pulse">Carregando...</div>
+      </div>
+    )
   }
 
+  if (!user) return null
+
+  const pnl = user.balance - user.startingBalance
+  const pnlPct = (pnl / user.startingBalance) * 100
+  const winRate = user.wins + user.losses > 0 
+    ? Math.round((user.wins / (user.wins + user.losses)) * 100) 
+    : 0
+
+  const openTrades = user.trades.filter(t => t.status === 'open')
+
   return (
-    <main className="min-h-screen flex flex-col relative">
+    <div className="min-h-screen bg-black text-green-500 p-4">
       <MatrixBackground />
-      <div className="relative z-10 flex flex-col min-h-screen">
-        <header className="border-b border-terminal-green/20 p-3 bg-terminal-bg/80 backdrop-blur-sm">
-          <div className="flex justify-between items-center max-w-lg mx-auto">
-            <Link href="/" className="font-display text-lg font-black glow">MANEL_TERMINAL</Link>
-            <div className="flex items-center gap-3 text-sm">
-              <Link href="/leaderboard" className="text-terminal-cyan hover:underline text-xs">RANKING</Link>
-              <button onClick={handleLogout} className="text-terminal-green/50 hover:text-terminal-red text-xs">SAIR</button>
-            </div>
+      
+      <div className="relative z-10 max-w-4xl mx-auto">
+        {/* Header */}
+        <div className="flex justify-between items-center mb-6 border-b border-green-800 pb-4">
+          <div>
+            <h1 className="text-2xl font-bold">MANEL TERMINAL</h1>
+            <p className="text-green-400 text-sm">@{user.username}</p>
           </div>
-        </header>
-        <div className="flex-1 p-4 space-y-4 max-w-lg mx-auto w-full">
-          <div className="text-center py-2">
-            <div className="text-terminal-cyan font-display">{user.username}</div>
-            <div className="text-xs text-terminal-green/40">Perfil: {user.riskProfile?.toUpperCase()}</div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="p-4 bg-terminal-bg/80 border border-terminal-green/20 rounded text-center pulse-border">
-              <div className="text-xs text-terminal-green/50">PORTFOLIO</div>
-              <div className="font-display text-2xl">${balance.toFixed(2)}</div>
-              <div className={pnl >= 0 ? "text-sm text-terminal-green" : "text-sm text-terminal-red"}>
-                {pnl >= 0 ? "+" : ""}{pnl.toFixed(2)} ({pnlPct.toFixed(1)}%)
-              </div>
-            </div>
-            <div className="p-4 bg-terminal-bg/80 border border-terminal-green/20 rounded text-center">
-              <div className="text-xs text-terminal-green/50">WIN RATE</div>
-              <div className="font-display text-2xl">{winRate.toFixed(0)}%</div>
-              <div className="text-sm text-terminal-green/50">{wins}V / {losses}D</div>
-            </div>
-          </div>
-          <div className="p-4 bg-terminal-bg/80 border border-terminal-green/20 rounded">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs text-terminal-green/50">SISTEMA</span>
-              <span className="flex items-center gap-2 text-xs">
-                <span className={syncing ? "w-2 h-2 rounded-full bg-terminal-yellow animate-pulse" : "w-2 h-2 rounded-full bg-terminal-green animate-pulse"}></span>
-                {syncing ? "SYNC..." : "ATIVO"}
-              </span>
-            </div>
-            <div className="text-center py-4 text-terminal-green/60 text-sm">
-              Polymarket Copy Trading
-              {lastSync && <div className="text-xs text-terminal-green/30 mt-1">Sync: {lastSync}</div>}
-            </div>
-          </div>
-          <div className="grid grid-cols-3 gap-2 text-center text-xs">
-            <div className="p-3 bg-terminal-bg/60 border border-terminal-green/10 rounded">
-              <div className="text-terminal-green/50">ABERTOS</div>
-              <div className="font-display text-lg text-terminal-cyan">{user.openPositions || 0}</div>
-            </div>
-            <div className="p-3 bg-terminal-bg/60 border border-terminal-green/10 rounded">
-              <div className="text-terminal-green/50">RANK</div>
-              <div className="font-display text-lg text-terminal-yellow">#{user.rank || "-"}</div>
-            </div>
-            <div className="p-3 bg-terminal-bg/60 border border-terminal-green/10 rounded">
-              <div className="text-terminal-green/50">TRADES</div>
-              <div className="font-display text-lg">{wins + losses}</div>
-            </div>
+          <div className="text-right">
+            <p className="text-sm text-green-600">Perfil: {user.riskProfile.toUpperCase()}</p>
+            <button 
+              onClick={() => router.push('/leaderboard')}
+              className="text-sm text-cyan-400 hover:text-cyan-300"
+            >
+              Ranking #{rank}
+            </button>
           </div>
         </div>
-        <footer className="border-t border-terminal-green/10 p-2 text-center text-xs text-terminal-green/30 bg-terminal-bg/80">
-          Auto-sync 30s
-        </footer>
+
+        {/* Stats Grid */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          <div className="bg-black/50 border border-green-800 p-4 rounded">
+            <p className="text-green-600 text-xs">BALANCE</p>
+            <p className="text-2xl font-bold">${user.balance.toFixed(2)}</p>
+          </div>
+          <div className="bg-black/50 border border-green-800 p-4 rounded">
+            <p className="text-green-600 text-xs">P&L</p>
+            <p className={`text-2xl font-bold ${pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+              {pnl >= 0 ? '+' : ''}${pnl.toFixed(2)} ({pnlPct >= 0 ? '+' : ''}{pnlPct.toFixed(1)}%)
+            </p>
+          </div>
+          <div className="bg-black/50 border border-green-800 p-4 rounded">
+            <p className="text-green-600 text-xs">WIN RATE</p>
+            <p className="text-2xl font-bold">{winRate}%</p>
+            <p className="text-xs text-green-600">{user.wins}W / {user.losses}L</p>
+          </div>
+          <div className="bg-black/50 border border-green-800 p-4 rounded">
+            <p className="text-green-600 text-xs">POSICOES ABERTAS</p>
+            <p className="text-2xl font-bold">{openTrades.length}</p>
+          </div>
+        </div>
+
+        {/* Open Positions */}
+        {openTrades.length > 0 && (
+          <div className="mb-6">
+            <h2 className="text-lg font-bold mb-3 text-green-400">POSICOES ABERTAS</h2>
+            <div className="space-y-2">
+              {openTrades.map(trade => (
+                <div key={trade.id} className="bg-black/50 border border-yellow-800 p-3 rounded flex justify-between items-center">
+                  <div>
+                    <p className="font-bold">{trade.title}</p>
+                    <p className="text-sm text-green-600">{trade.outcome} @ {trade.entryPrice.toFixed(2)}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-yellow-400">OPEN</p>
+                    <p className="text-sm">${trade.userBet.toFixed(2)}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Recent Trades */}
+        <div>
+          <h2 className="text-lg font-bold mb-3 text-green-400">TRADES RECENTES</h2>
+          <div className="space-y-2">
+            {user.trades.slice(0, 10).map(trade => (
+              <div 
+                key={trade.id} 
+                className={`bg-black/50 border p-3 rounded flex justify-between items-center ${
+                  trade.status === 'won' ? 'border-green-800' : 
+                  trade.status === 'lost' ? 'border-red-800' : 'border-yellow-800'
+                }`}
+              >
+                <div>
+                  <p className="font-bold">{trade.title}</p>
+                  <p className="text-sm text-green-600">{trade.outcome} @ {trade.entryPrice.toFixed(2)}</p>
+                </div>
+                <div className="text-right">
+                  <p className={`font-bold ${
+                    trade.status === 'won' ? 'text-green-400' : 
+                    trade.status === 'lost' ? 'text-red-400' : 'text-yellow-400'
+                  }`}>
+                    {trade.status.toUpperCase()}
+                  </p>
+                  <p className="text-sm">
+                    {trade.status === 'won' ? '+' : trade.status === 'lost' ? '-' : ''}${trade.userBet.toFixed(2)}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="mt-6 pt-4 border-t border-green-800 flex justify-between text-sm text-green-600">
+          <span>Sync: Auto (30s)</span>
+          <button 
+            onClick={() => { localStorage.removeItem('manel_current_user'); router.push('/') }}
+            className="text-red-400 hover:text-red-300"
+          >
+            Sair
+          </button>
+        </div>
       </div>
-    </main>
+    </div>
   )
 }
