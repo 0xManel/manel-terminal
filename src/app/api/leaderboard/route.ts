@@ -28,6 +28,7 @@ export async function GET() {
       winRate: u.wins + u.losses > 0 ? Math.round((u.wins / (u.wins + u.losses)) * 100) : 0,
       trades: (u.wins || 0) + (u.losses || 0),
       riskProfile: u.riskProfile || "medium",
+      rank: 0,
     }))
     
     // Sort by P&L descending
