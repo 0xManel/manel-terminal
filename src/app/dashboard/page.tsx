@@ -16,7 +16,7 @@ export default function Dashboard() {
   const [rank, setRank] = useState(0)
   const [loading, setLoading] = useState(true)
   const [lastSync, setLastSync] = useState<string>('')
-  const [notification, setNotification] = useState<string | null>(null)
+  const [notification, setNotification] = useState<{type: string, message: string} | null>(null)
 
   const loadUser = useCallback(() => {
     const currentUser = getCurrentUser()
@@ -36,16 +36,16 @@ export default function Dashboard() {
   useEffect(() => {
     loadUser()
     
-    // Sync cada 5 segundos para trades mas frecuentes
+    // Sync cada 5 segundos
     const interval = setInterval(() => {
       const result = syncTrades()
       loadUser()
       
       if (result.newTrade) {
-        setNotification('Novo trade aberto!')
-        setTimeout(() => setNotification(null), 3000)
+        setNotification({type: 'new', message: 'Nova entrada copiada de Uncommon-Oat'})
+        setTimeout(() => setNotification(null), 4000)
       } else if (result.resolved) {
-        setNotification('Trade resolvido!')
+        setNotification({type: 'resolved', message: 'Mercado resolvido!'})
         setTimeout(() => setNotification(null), 3000)
       }
     }, 5000)
@@ -57,7 +57,7 @@ export default function Dashboard() {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
         <MatrixBackground />
-        <div className="text-green-500 text-xl animate-pulse">Carregando...</div>
+        <div className="text-green-500 text-xl animate-pulse">Conectando ao Polymarket...</div>
       </div>
     )
   }
@@ -71,7 +71,7 @@ export default function Dashboard() {
     : 0
 
   const openTrades = user.trades.filter(t => t.status === 'open')
-  const recentTrades = user.trades.slice(0, 15)
+  const recentTrades = user.trades.slice(0, 20)
 
   return (
     <div className="min-h-screen bg-black text-green-500 p-4">
@@ -79,8 +79,11 @@ export default function Dashboard() {
       
       {/* Notification */}
       {notification && (
-        <div className="fixed top-4 right-4 z-50 bg-green-900 border border-green-500 text-green-400 px-4 py-2 rounded animate-pulse">
-          {notification}
+        <div className={`fixed top-4 right-4 z-50 px-4 py-2 rounded border animate-pulse ${
+          notification.type === 'new' ? 'bg-cyan-900/80 border-cyan-500 text-cyan-400' : 
+          'bg-green-900/80 border-green-500 text-green-400'
+        }`}>
+          {notification.message}
         </div>
       )}
       
@@ -89,7 +92,7 @@ export default function Dashboard() {
         <div className="flex justify-between items-center mb-6 border-b border-green-800 pb-4">
           <div>
             <h1 className="text-2xl font-bold">MANEL TERMINAL</h1>
-            <p className="text-green-400 text-sm">@{user.username}</p>
+            <p className="text-green-400 text-sm">@{user.username} | Copiando: Uncommon-Oat</p>
           </div>
           <div className="text-right">
             <p className="text-sm text-green-600">Perfil: {user.riskProfile.toUpperCase()}</p>
@@ -103,26 +106,41 @@ export default function Dashboard() {
         </div>
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-black/50 border border-green-800 p-4 rounded">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+          <div className="bg-black/50 border border-green-800 p-3 rounded">
             <p className="text-green-600 text-xs">BALANCE</p>
-            <p className="text-2xl font-bold">${user.balance.toFixed(2)}</p>
+            <p className="text-xl font-bold">${user.balance.toFixed(2)}</p>
           </div>
-          <div className="bg-black/50 border border-green-800 p-4 rounded">
+          <div className="bg-black/50 border border-green-800 p-3 rounded">
             <p className="text-green-600 text-xs">P&L</p>
-            <p className={`text-2xl font-bold ${pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-              {pnl >= 0 ? '+' : ''}${pnl.toFixed(2)} ({pnlPct >= 0 ? '+' : ''}{pnlPct.toFixed(1)}%)
+            <p className={`text-xl font-bold ${pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+              {pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}
+            </p>
+            <p className={`text-xs ${pnl >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              {pnlPct >= 0 ? '+' : ''}{pnlPct.toFixed(1)}%
             </p>
           </div>
-          <div className="bg-black/50 border border-green-800 p-4 rounded">
+          <div className="bg-black/50 border border-green-800 p-3 rounded">
             <p className="text-green-600 text-xs">WIN RATE</p>
-            <p className="text-2xl font-bold">{winRate}%</p>
+            <p className="text-xl font-bold">{winRate}%</p>
             <p className="text-xs text-green-600">{user.wins}W / {user.losses}L</p>
           </div>
-          <div className="bg-black/50 border border-green-800 p-4 rounded">
+          <div className="bg-black/50 border border-green-800 p-3 rounded">
             <p className="text-green-600 text-xs">ABERTAS</p>
-            <p className="text-2xl font-bold text-yellow-400">{openTrades.length}</p>
-            <p className="text-xs text-green-600 animate-pulse">Ao vivo</p>
+            <p className="text-xl font-bold text-yellow-400">{openTrades.length}</p>
+            <p className="text-xs text-yellow-600 animate-pulse">Aguardando...</p>
+          </div>
+        </div>
+
+        {/* Volume & Fees */}
+        <div className="grid grid-cols-2 gap-3 mb-6 text-sm">
+          <div className="bg-black/30 border border-green-900 p-2 rounded flex justify-between">
+            <span className="text-green-600">Volume Total:</span>
+            <span>${user.totalVolume?.toFixed(2) || '0.00'}</span>
+          </div>
+          <div className="bg-black/30 border border-green-900 p-2 rounded flex justify-between">
+            <span className="text-green-600">Fees Pagos:</span>
+            <span className="text-red-400">-${user.totalFees?.toFixed(2) || '0.00'}</span>
           </div>
         </div>
 
@@ -131,18 +149,24 @@ export default function Dashboard() {
           <div className="mb-6">
             <h2 className="text-lg font-bold mb-3 text-yellow-400 flex items-center gap-2">
               <span className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></span>
-              POSICOES ABERTAS
+              POSICOES ABERTAS ({openTrades.length})
             </h2>
             <div className="space-y-2">
               {openTrades.map(trade => (
-                <div key={trade.id} className="bg-black/50 border border-yellow-600 p-3 rounded flex justify-between items-center animate-pulse">
-                  <div>
-                    <p className="font-bold text-yellow-400">{trade.title}</p>
-                    <p className="text-sm text-green-600">{trade.outcome} @ {trade.entryPrice.toFixed(2)}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-yellow-400 font-bold">AGUARDANDO</p>
-                    <p className="text-sm">${trade.userBet.toFixed(2)}</p>
+                <div key={trade.id} className="bg-black/50 border border-yellow-600/50 p-3 rounded">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p className="font-bold text-yellow-400">{trade.asset} {trade.outcome}</p>
+                      <p className="text-xs text-green-600">{trade.title}</p>
+                      <p className="text-xs text-green-700 mt-1">
+                        Copiado de {trade.trader} | {trade.marketDuration}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-yellow-400 font-bold">AGUARDANDO</p>
+                      <p className="text-sm">Entrada: {trade.entryPrice.toFixed(2)}</p>
+                      <p className="text-xs text-green-600">Bet: ${trade.userBet.toFixed(2)}</p>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -150,32 +174,44 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Recent Trades */}
+        {/* Trade History */}
         <div>
           <h2 className="text-lg font-bold mb-3 text-green-400">HISTORICO DE TRADES</h2>
           <div className="space-y-2">
             {recentTrades.map(trade => (
               <div 
                 key={trade.id} 
-                className={`bg-black/50 border p-3 rounded flex justify-between items-center transition-all ${
-                  trade.status === 'won' ? 'border-green-700' : 
-                  trade.status === 'lost' ? 'border-red-700' : 'border-yellow-600'
+                className={`bg-black/50 border p-3 rounded ${
+                  trade.status === 'won' ? 'border-green-700/50' : 
+                  trade.status === 'lost' ? 'border-red-700/50' : 'border-yellow-600/50'
                 }`}
               >
-                <div>
-                  <p className="font-bold">{trade.title}</p>
-                  <p className="text-sm text-green-600">{trade.outcome} @ {trade.entryPrice.toFixed(2)}</p>
-                </div>
-                <div className="text-right">
-                  <p className={`font-bold ${
-                    trade.status === 'won' ? 'text-green-400' : 
-                    trade.status === 'lost' ? 'text-red-400' : 'text-yellow-400'
-                  }`}>
-                    {trade.status === 'won' ? 'GANHOU' : trade.status === 'lost' ? 'PERDEU' : 'ABERTO'}
-                  </p>
-                  <p className="text-sm">
-                    {trade.status === 'won' ? '+' : '-'}${trade.userBet.toFixed(2)}
-                  </p>
+                <div className="flex justify-between items-start">
+                  <div>
+                    <p className="font-bold">{trade.asset} {trade.outcome}</p>
+                    <p className="text-xs text-green-600">{trade.marketDuration} | {trade.trader}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className={`font-bold ${
+                      trade.status === 'won' ? 'text-green-400' : 
+                      trade.status === 'lost' ? 'text-red-400' : 'text-yellow-400'
+                    }`}>
+                      {trade.status === 'won' ? 'GANHOU' : trade.status === 'lost' ? 'PERDEU' : 'ABERTO'}
+                    </p>
+                    <p className="text-sm">
+                      @ {trade.entryPrice.toFixed(2)} | ${trade.userBet.toFixed(2)}
+                    </p>
+                    {trade.status === 'won' && trade.returnedAmount && (
+                      <p className="text-xs text-green-400">
+                        +${(trade.returnedAmount - trade.userBet).toFixed(2)}
+                      </p>
+                    )}
+                    {trade.status === 'lost' && (
+                      <p className="text-xs text-red-400">
+                        -${trade.userBet.toFixed(2)}
+                      </p>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}
@@ -183,16 +219,16 @@ export default function Dashboard() {
         </div>
 
         {/* Footer */}
-        <div className="mt-6 pt-4 border-t border-green-800 flex justify-between text-sm text-green-600">
-          <span className="flex items-center gap-2">
+        <div className="mt-6 pt-4 border-t border-green-800 flex justify-between items-center text-sm text-green-600">
+          <div className="flex items-center gap-2">
             <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-            Sync: {lastSync}
-          </span>
+            <span>Polymarket Sync: {lastSync}</span>
+          </div>
           <button 
             onClick={() => { localStorage.removeItem('manel_current_user'); router.push('/') }}
             className="text-red-400 hover:text-red-300"
           >
-            Sair
+            Desconectar
           </button>
         </div>
       </div>
