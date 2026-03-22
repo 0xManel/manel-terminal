@@ -1,12 +1,12 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import MatrixBackground from '@/components/MatrixBackground'
 import { 
   getCurrentUser, 
   getLeaderboard, 
-  simulateNewTrade,
+  syncTrades,
   UserData 
 } from '@/lib/client-storage'
 
@@ -15,32 +15,43 @@ export default function Dashboard() {
   const [user, setUser] = useState<UserData | null>(null)
   const [rank, setRank] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [lastSync, setLastSync] = useState<string>('')
+  const [notification, setNotification] = useState<string | null>(null)
+
+  const loadUser = useCallback(() => {
+    const currentUser = getCurrentUser()
+    if (!currentUser) {
+      router.push('/login')
+      return
+    }
+    setUser({...currentUser})
+    
+    const leaderboard = getLeaderboard()
+    const userRank = leaderboard.find(u => u.email === currentUser.email)
+    setRank(userRank?.rank || 0)
+    setLoading(false)
+    setLastSync(new Date().toLocaleTimeString())
+  }, [router])
 
   useEffect(() => {
-    const loadUser = () => {
-      const currentUser = getCurrentUser()
-      if (!currentUser) {
-        router.push('/login')
-        return
-      }
-      setUser(currentUser)
-      
-      const leaderboard = getLeaderboard()
-      const userRank = leaderboard.find(u => u.email === currentUser.email)
-      setRank(userRank?.rank || 0)
-      setLoading(false)
-    }
-    
     loadUser()
     
-    // Sync cada 30 segundos
+    // Sync cada 5 segundos para trades mas frecuentes
     const interval = setInterval(() => {
-      simulateNewTrade()
+      const result = syncTrades()
       loadUser()
-    }, 30000)
+      
+      if (result.newTrade) {
+        setNotification('Novo trade aberto!')
+        setTimeout(() => setNotification(null), 3000)
+      } else if (result.resolved) {
+        setNotification('Trade resolvido!')
+        setTimeout(() => setNotification(null), 3000)
+      }
+    }, 5000)
     
     return () => clearInterval(interval)
-  }, [router])
+  }, [loadUser])
 
   if (loading) {
     return (
@@ -60,10 +71,18 @@ export default function Dashboard() {
     : 0
 
   const openTrades = user.trades.filter(t => t.status === 'open')
+  const recentTrades = user.trades.slice(0, 15)
 
   return (
     <div className="min-h-screen bg-black text-green-500 p-4">
       <MatrixBackground />
+      
+      {/* Notification */}
+      {notification && (
+        <div className="fixed top-4 right-4 z-50 bg-green-900 border border-green-500 text-green-400 px-4 py-2 rounded animate-pulse">
+          {notification}
+        </div>
+      )}
       
       <div className="relative z-10 max-w-4xl mx-auto">
         {/* Header */}
@@ -101,24 +120,28 @@ export default function Dashboard() {
             <p className="text-xs text-green-600">{user.wins}W / {user.losses}L</p>
           </div>
           <div className="bg-black/50 border border-green-800 p-4 rounded">
-            <p className="text-green-600 text-xs">POSICOES ABERTAS</p>
-            <p className="text-2xl font-bold">{openTrades.length}</p>
+            <p className="text-green-600 text-xs">ABERTAS</p>
+            <p className="text-2xl font-bold text-yellow-400">{openTrades.length}</p>
+            <p className="text-xs text-green-600 animate-pulse">Ao vivo</p>
           </div>
         </div>
 
         {/* Open Positions */}
         {openTrades.length > 0 && (
           <div className="mb-6">
-            <h2 className="text-lg font-bold mb-3 text-green-400">POSICOES ABERTAS</h2>
+            <h2 className="text-lg font-bold mb-3 text-yellow-400 flex items-center gap-2">
+              <span className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></span>
+              POSICOES ABERTAS
+            </h2>
             <div className="space-y-2">
               {openTrades.map(trade => (
-                <div key={trade.id} className="bg-black/50 border border-yellow-800 p-3 rounded flex justify-between items-center">
+                <div key={trade.id} className="bg-black/50 border border-yellow-600 p-3 rounded flex justify-between items-center animate-pulse">
                   <div>
-                    <p className="font-bold">{trade.title}</p>
+                    <p className="font-bold text-yellow-400">{trade.title}</p>
                     <p className="text-sm text-green-600">{trade.outcome} @ {trade.entryPrice.toFixed(2)}</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-yellow-400">OPEN</p>
+                    <p className="text-yellow-400 font-bold">AGUARDANDO</p>
                     <p className="text-sm">${trade.userBet.toFixed(2)}</p>
                   </div>
                 </div>
@@ -129,14 +152,14 @@ export default function Dashboard() {
 
         {/* Recent Trades */}
         <div>
-          <h2 className="text-lg font-bold mb-3 text-green-400">TRADES RECENTES</h2>
+          <h2 className="text-lg font-bold mb-3 text-green-400">HISTORICO DE TRADES</h2>
           <div className="space-y-2">
-            {user.trades.slice(0, 10).map(trade => (
+            {recentTrades.map(trade => (
               <div 
                 key={trade.id} 
-                className={`bg-black/50 border p-3 rounded flex justify-between items-center ${
-                  trade.status === 'won' ? 'border-green-800' : 
-                  trade.status === 'lost' ? 'border-red-800' : 'border-yellow-800'
+                className={`bg-black/50 border p-3 rounded flex justify-between items-center transition-all ${
+                  trade.status === 'won' ? 'border-green-700' : 
+                  trade.status === 'lost' ? 'border-red-700' : 'border-yellow-600'
                 }`}
               >
                 <div>
@@ -148,10 +171,10 @@ export default function Dashboard() {
                     trade.status === 'won' ? 'text-green-400' : 
                     trade.status === 'lost' ? 'text-red-400' : 'text-yellow-400'
                   }`}>
-                    {trade.status.toUpperCase()}
+                    {trade.status === 'won' ? 'GANHOU' : trade.status === 'lost' ? 'PERDEU' : 'ABERTO'}
                   </p>
                   <p className="text-sm">
-                    {trade.status === 'won' ? '+' : trade.status === 'lost' ? '-' : ''}${trade.userBet.toFixed(2)}
+                    {trade.status === 'won' ? '+' : '-'}${trade.userBet.toFixed(2)}
                   </p>
                 </div>
               </div>
@@ -161,7 +184,10 @@ export default function Dashboard() {
 
         {/* Footer */}
         <div className="mt-6 pt-4 border-t border-green-800 flex justify-between text-sm text-green-600">
-          <span>Sync: Auto (30s)</span>
+          <span className="flex items-center gap-2">
+            <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+            Sync: {lastSync}
+          </span>
           <button 
             onClick={() => { localStorage.removeItem('manel_current_user'); router.push('/') }}
             className="text-red-400 hover:text-red-300"
